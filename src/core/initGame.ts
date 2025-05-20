@@ -45,20 +45,6 @@ export async function initGame(
   const drawBar = createSaturationBar(app, player, saturationRef);
   const target = setupPointerControl(app, player);
 
-  function clampPlayerPosition() {
-    const halfWidth = player.width * player.anchor.x;
-    const halfHeight = player.height * player.anchor.y;
-
-    player.x = Math.max(
-      halfWidth,
-      Math.min(app.screen.width - halfWidth, player.x)
-    );
-    player.y = Math.max(
-      halfHeight,
-      Math.min(app.screen.height - halfHeight, player.y)
-    );
-  }
-
   app.ticker.add(() => {
     drawBar();
 
@@ -71,7 +57,6 @@ export async function initGame(
     if (dist > step) {
       player.x += (dx / dist) * step;
       player.y += (dy / dist) * step;
-      clampPlayerPosition();
       player.playWalkSound();
     } else {
       player.position.copyFrom(target);

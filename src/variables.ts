@@ -7,4 +7,5 @@ export const GAME_CONFIG = {
     width: 79,
     height: 121,
   },
-};
+  SATURATION_BAR_OFFSET: 70,
+} as const;
