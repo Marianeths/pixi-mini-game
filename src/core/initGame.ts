@@ -1,70 +1,132 @@
-import { Application, Assets } from "pixi.js";
+import { Application, Assets, Texture } from "pixi.js";
 import { Sound } from "@pixi/sound";
-import { createPlayer } from "./player.ts";
-import { createFruitManager } from "./fruitManager.ts";
-import { createSaturationBar } from "./saturationBar.ts";
-import { setupPointerControl } from "./pointerControl.ts";
+import { Player } from "./player";
+import { FruitManager } from "./fruitManager";
+import { CollisionSystem } from "./collisionSystem";
+import { PointerController } from "./pointerControl.ts";
+
 import { GAME_CONFIG } from "../variables.ts";
 
-export async function initGame(
-  app: Application,
-  canvas: HTMLCanvasElement,
-  saturationRef: React.MutableRefObject<number>
-) {
-  await app.init({
-    canvas,
-    width: GAME_CONFIG.SIZE,
-    height: GAME_CONFIG.SIZE,
-    backgroundColor: 0x228b22,
-    autoStart: false,
-  });
+export class GameController {
+  private readonly app = new Application();
+  private readonly canvas: HTMLCanvasElement;
 
-  const assets = await Assets.load([
+  private readonly collisionSystem = new CollisionSystem();
+  private fruitManager: FruitManager;
+  private player: Player;
+  private pointerController: PointerController;
+
+  private readonly assetSources = [
     "assets/player.png",
     "assets/apple.png",
     "sounds/walk.mp3",
     "sounds/pick.mp3",
-  ]);
+  ] as const;
+  private assets: Record<(typeof this.assetSources)[number], Texture>;
 
-  const player = createPlayer(assets["assets/player.png"]);
-  const pickSnd = Sound.from({
-    url: "sounds/pick.mp3",
-    volume: 0.3,
-  });
+  constructor(canvas: HTMLCanvasElement) {
+    this.canvas = canvas;
+  }
 
-  app.stage.addChild(player);
+  public async init({
+    autoStart,
+    backgroundColor,
+    height,
+    width,
+  }: {
+    width: number;
+    height: number;
+    backgroundColor: number;
+    autoStart: boolean;
+  }) {
+    await this.app.init({
+      canvas: this.canvas,
+      width,
+      height,
+      backgroundColor,
+      autoStart,
+    });
 
-  const fruits = createFruitManager(
-    app,
-    player,
-    assets["assets/apple.png"],
-    pickSnd,
-    saturationRef,
-    GAME_CONFIG.FRUIT_COUNT
-  );
-  const drawBar = createSaturationBar(app, player, saturationRef);
-  const target = setupPointerControl(app, player);
+    await this.initAssets();
+    this.initPlayer();
+    this.player.mount(this.app.stage);
 
-  app.ticker.add(() => {
-    drawBar();
+    this.initFruitManager();
+    this.initPointerController();
 
-    const dt = app.ticker.deltaMS / 1000;
-    const dx = target.x - player.x;
-    const dy = target.y - player.y;
-    const dist = Math.hypot(dx, dy);
-    const step = GAME_CONFIG.SPEED * dt;
+    this.fruitManager.mountFruits(this.app.stage);
+    this.fruitManager.spawnMany(this.player.bounds, GAME_CONFIG.FRUIT_COUNT);
 
-    if (dist > step) {
-      player.x += (dx / dist) * step;
-      player.y += (dy / dist) * step;
-      player.playWalkSound();
-    } else {
-      player.position.copyFrom(target);
-      player.stopWalkSound();
-    }
+    this.listenTicker();
+  }
 
-    fruits.checkCollision();
-  });
+  public start() {
+    this.app.start();
+  }
 
-  app.start();
+  private async initAssets() {
+    this.assets = await Assets.load(this.assetSources);
+  }
+
+  private initPlayer() {
+    this.player = new Player({
+      width: GAME_CONFIG.PLAYER_SIZE.width,
+      height: GAME_CONFIG.PLAYER_SIZE.height,
+      texture: this.assets["assets/player.png"],
+      position: {
+        x: GAME_CONFIG.SIZE / 2,
+        y: GAME_CONFIG.SIZE / 2,
+      },
+      pickSound: Sound.from({
+        url: "sounds/pick.mp3",
+        volume: 0.3,
+      }),
+      saturationBarOffset: GAME_CONFIG.SATURATION_BAR_OFFSET,
+      walkSound: Sound.from({
+        url: "sounds/walk.mp3",
+        preload: true,
+        volume: 0.1,
+      }),
+    });
+  }
+
+  private initFruitManager() {
+    this.fruitManager = new FruitManager(this.assets["assets/apple.png"]);
+  }
+
+  private initPointerController() {
+    const playerBounds = this.player.bounds;
+
+    const halfWidth = playerBounds.width * this.player.anchor.x;
+    const halfHeight = playerBounds.height * this.player.anchor.y;
+
+    this.pointerController = new PointerController(
+      this.canvas,
+      {
+        x: playerBounds.x + halfWidth,
+        y: playerBounds.y + halfHeight,
+      },
+      {
+        x: halfWidth,
+        y: halfHeight,
+      }
+    );
+  }
+
+  private listenTicker() {
+    this.app.ticker.add(() => {
+      this.collisionSystem.check(
+        this.player.bounds,
+        this.fruitManager.getFruits(),
+        (fruit) => {
+          this.player.onCollisionWithFruit();
+
+          this.fruitManager.remove(fruit);
+          this.fruitManager.spawn(this.player.bounds);
+        }
+      );
+
+      this.player.move(this.app.ticker.deltaMS, this.pointerController.target);
+    });
+  }
 }

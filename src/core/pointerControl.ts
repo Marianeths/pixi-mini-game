@@ -1,48 +1,71 @@
-import { Application, Sprite, Point } from "pixi.js";
+import { Point, type PointData } from "pixi.js";
+import { clamp } from "../utils/clamp";
 
-export function setupPointerControl(app: Application, player: Sprite) {
-  const target = new Point(player.x, player.y);
-  let isMouseDown = false;
+export class PointerController {
+  public readonly target: Point = new Point();
 
-  const canvas = app.canvas as HTMLCanvasElement;
+  private isMouseDown = false;
+  private readonly canvas: HTMLCanvasElement;
 
-  const calculateTargetCoordinate = (
-    pointerCoord: number,
-    rectCoord: number,
-    rectSize: number,
-    deadZone: number
-  ) => {
-    return Math.min(
-      Math.max(pointerCoord - rectCoord, deadZone),
-      rectSize - deadZone
-    );
-  };
+  private boundingConstraint: PointData;
 
-  function updateTargetFromEvent(e: PointerEvent) {
-    const halfWidth = player.width * player.anchor.x;
-    const halfHeight = player.height * player.anchor.y;
+  constructor(
+    canvas: HTMLCanvasElement,
+    position: PointData,
+    boundingConstraint: PointData
+  ) {
+    this.canvas = canvas;
+    this.target.set(position.x, position.y);
 
-    const rect = canvas.getBoundingClientRect();
+    this.boundingConstraint = boundingConstraint;
 
-    target.set(
-      calculateTargetCoordinate(e.clientX, rect.left, rect.width, halfWidth),
-      calculateTargetCoordinate(e.clientY, rect.top, rect.height, halfHeight)
-    );
+    this.attachListeners();
   }
 
-  canvas.addEventListener("pointerdown", (e: PointerEvent) => {
-    isMouseDown = true;
-    updateTargetFromEvent(e);
-  });
+  private attachListeners() {
+    this.canvas.addEventListener("pointerdown", this.onPointerDown);
+    document.addEventListener("pointerup", this.onPointerUp);
+    this.canvas.addEventListener("pointermove", this.onPointerMove);
+  }
 
-  document.addEventListener("pointerup", () => {
-    isMouseDown = false;
-  });
+  private detachListeners() {
+    this.canvas.removeEventListener("pointerdown", this.onPointerDown);
+    document.removeEventListener("pointerup", this.onPointerUp);
+    this.canvas.removeEventListener("pointermove", this.onPointerMove);
+  }
 
-  canvas.addEventListener("pointermove", (e: PointerEvent) => {
-    if (!isMouseDown) return;
-    updateTargetFromEvent(e);
-  });
+  private onPointerDown = (e: PointerEvent) => {
+    this.isMouseDown = true;
+    this.updateTargetFromEvent(e);
+  };
 
-  return target;
+  private onPointerUp = () => {
+    this.isMouseDown = false;
+  };
+
+  private onPointerMove = (e: PointerEvent) => {
+    if (!this.isMouseDown) return;
+    this.updateTargetFromEvent(e);
+  };
+
+  private updateTargetFromEvent(e: PointerEvent) {
+    const rect = this.canvas.getBoundingClientRect();
+
+    const x = clamp(
+      e.clientX - rect.left,
+      this.boundingConstraint.x,
+      rect.width - this.boundingConstraint.x
+    );
+    const y = clamp(
+      e.clientY - rect.top,
+      this.boundingConstraint.y,
+      rect.height - this.boundingConstraint.y
+    );
+
+    this.target.set(x, y);
+  }
+
+  public destroy() {
+    this.detachListeners();
+  }
 }

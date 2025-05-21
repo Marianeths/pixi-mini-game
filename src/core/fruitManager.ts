@@ -1,73 +1,71 @@
-import { Application, Sprite, Texture, Container } from "pixi.js";
-import { Sound } from "@pixi/sound";
+import { Sprite, Texture, Container } from "pixi.js";
 import { GAME_CONFIG } from "../variables";
-import { hitAABB } from "../utils/hitAABB";
+import { type BoundingBox, hitAABB } from "../utils/hitAABB";
+import { range } from "../utils/range";
+import { getRandomIntInRange } from "../utils/getRandomIntInRange";
 
 type Fruit = { sprite: Sprite };
 
-export function createFruitManager(
-  app: Application,
-  player: Sprite,
-  fruitTex: Texture,
-  pickSnd: Sound,
-  saturationRef: React.MutableRefObject<number>,
-  count: number
-) {
-  const fruits: Fruit[] = [];
-  const container = new Container();
-  app.stage.addChild(container);
+export class FruitManager {
+  private fruits: Fruit[] = [];
+  private readonly container = new Container();
+  private readonly fruitTex: Texture;
 
-  const overlapsOtherFruits = (sprite: Sprite) => {
-    return fruits.some((f) => hitAABB(f.sprite, sprite));
-  };
+  constructor(fruitTex: Texture) {
+    this.fruitTex = fruitTex;
+  }
 
-  const spawnFruit = () => {
+  public getFruits(): readonly Fruit[] {
+    return this.fruits;
+  }
+
+  public mountFruits(container: Container) {
+    container.addChild(this.container);
+  }
+
+  private isOverlapsOtherFruits(fruitBounds: BoundingBox) {
+    return this.fruits.some((f) => hitAABB(f.sprite.getBounds(), fruitBounds));
+  }
+
+  private genFruitPosition() {
+    return getRandomIntInRange(
+      GAME_CONFIG.FRUIT_SPAWN_OFFSET_LIMIT,
+      GAME_CONFIG.SIZE - GAME_CONFIG.FRUIT_SPAWN_OFFSET_LIMIT
+    );
+  }
+
+  public spawn(spawnExclusionZone: BoundingBox) {
     let apple: Sprite;
+    let appleBounds: BoundingBox;
+
     let attempts = 0;
 
     do {
-      apple = new Sprite(fruitTex);
+      apple = new Sprite(this.fruitTex);
       apple.anchor.set(0.5);
       apple.width = apple.height = GAME_CONFIG.FRUIT_SIZE;
-      apple.position.set(
-        40 + Math.random() * (GAME_CONFIG.SIZE - 80),
-        40 + Math.random() * (GAME_CONFIG.SIZE - 80)
-      );
+      apple.position.set(this.genFruitPosition(), this.genFruitPosition());
+      appleBounds = apple.getBounds();
       attempts++;
     } while (
-      (hitAABB(player, apple) || overlapsOtherFruits(apple)) &&
+      (hitAABB(spawnExclusionZone, appleBounds) ||
+        this.isOverlapsOtherFruits(appleBounds)) &&
       attempts < 100
     );
 
     if (attempts >= 100) return;
 
-    container.addChild(apple);
-    fruits.push({ sprite: apple });
-  };
+    this.container.addChild(apple);
+    this.fruits.push({ sprite: apple });
+  }
 
-  for (let i = 0; i < count; i++) spawnFruit();
+  public spawnMany(spawnExclusionZone: BoundingBox, numberOfFruits: number) {
+    range(numberOfFruits).forEach(() => this.spawn(spawnExclusionZone));
+  }
 
-  const checkCollision = () => {
-    for (let i = fruits.length - 1; i >= 0; i--) {
-      const f = fruits[i];
-      if (hitAABB(player, f.sprite)) {
-        if (saturationRef.current < 1) {
-          pickSnd.play();
-          saturationRef.current = Math.min(
-            1,
-            Math.round((saturationRef.current + 0.1) * 1000) / 1000
-          );
-        }
-
-        container.removeChild(f.sprite);
-        f.sprite.destroy();
-        fruits.splice(i, 1);
-        spawnFruit();
-      }
-    }
-  };
-
-  return {
-    checkCollision,
-  };
+  public remove(fruit: Fruit) {
+    this.fruits = this.fruits.filter((f) => f !== fruit);
+    this.container.removeChild(fruit.sprite);
+    fruit.sprite.destroy();
+  }
 }

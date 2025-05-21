@@ -1,20 +1,29 @@
 import { useEffect, useRef } from "react";
-import { Application } from "pixi.js";
-import { initGame } from "../core/initGame";
+import { GameController } from "../core/initGame";
 import { GAME_CONFIG } from "../variables";
 
 export default function Game() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const saturationRef = useRef(0);
+  const gameControllerRef = useRef<GameController | null>(null);
 
   useEffect(() => {
-    const app = new Application();
+    if (!canvasRef.current || gameControllerRef.current) {
+      return;
+    }
 
-    const start = async () => {
-      await initGame(app, canvasRef.current!, saturationRef);
-    };
+    const gameController = new GameController(canvasRef.current);
+    gameControllerRef.current = gameController;
 
-    start();
+    (async () => {
+      await gameController.init({
+        width: GAME_CONFIG.SIZE,
+        height: GAME_CONFIG.SIZE,
+        autoStart: false,
+        backgroundColor: 0x228b22,
+      });
+
+      gameController.start();
+    })();
   }, []);
 
   return (

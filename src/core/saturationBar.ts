@@ -1,19 +1,26 @@
-import { Application, Sprite, Graphics } from "pixi.js";
-import { GAME_CONFIG } from "../variables.ts";
+import { Graphics, type PointData, Container } from "pixi.js";
 
-export function createSaturationBar(
-  app: Application,
-  player: Sprite,
-  saturationRef: React.MutableRefObject<number>
-) {
-  const bar = new Graphics();
-  app.stage.addChild(bar);
+export class SaturationBar {
+  private readonly bar = new Graphics();
+  private readonly saturationBarOffset: number;
 
-  return function drawBar() {
-    bar.clear();
-    bar.position.set(player.x, player.y - GAME_CONFIG.SATURATION_BAR_OFFSET);
-    bar.setStrokeStyle(2);
-    bar.rect(-25, 0, 50, 6).fill(0xff0000);
-    bar.rect(-25, 0, 50 * saturationRef.current, 6).fill(0x00ff00);
-  };
+  constructor(saturationBarOffset: number) {
+    this.saturationBarOffset = saturationBarOffset;
+  }
+
+  public mount(container: Container) {
+    container.addChild(this.bar);
+  }
+
+  public draw(anchorPosition: PointData, fillPercent: number) {
+    this.bar.clear();
+
+    this.bar.position.set(
+      anchorPosition.x,
+      anchorPosition.y - this.saturationBarOffset
+    );
+    this.bar.setStrokeStyle(2);
+    this.bar.rect(-25, 0, 50, 6).fill(0xff0000);
+    this.bar.rect(-25, 0, 50 * fillPercent, 6).fill(0x00ff00);
+  }
 }
