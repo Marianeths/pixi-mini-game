@@ -35,28 +35,37 @@ export class FruitManager {
   }
 
   public spawn(spawnExclusionZone: BoundingBox) {
-    let apple: Sprite;
-    let appleBounds: BoundingBox;
-
+    const fruitSize = GAME_CONFIG.FRUIT_SIZE;
+    const halfSize = fruitSize / 2;
     let attempts = 0;
 
-    do {
-      apple = new Sprite(this.fruitTex);
-      apple.anchor.set(0.5);
-      apple.width = apple.height = GAME_CONFIG.FRUIT_SIZE;
-      apple.position.set(this.genFruitPosition(), this.genFruitPosition());
-      appleBounds = apple.getBounds();
+    while (attempts < 100) {
+      const x = this.genFruitPosition();
+      const y = this.genFruitPosition();
+
+      const appleBounds: BoundingBox = {
+        x: x - halfSize,
+        y: y - halfSize,
+        width: fruitSize,
+        height: fruitSize,
+      };
+
+      if (
+        !hitAABB(spawnExclusionZone, appleBounds) &&
+        !this.isOverlapsOtherFruits(appleBounds)
+      ) {
+        const apple = new Sprite(this.fruitTex);
+        apple.anchor.set(0.5);
+        apple.width = apple.height = fruitSize;
+        apple.position.set(x, y);
+
+        this.container.addChild(apple);
+        this.fruits.push({ sprite: apple });
+        return;
+      }
+
       attempts++;
-    } while (
-      (hitAABB(spawnExclusionZone, appleBounds) ||
-        this.isOverlapsOtherFruits(appleBounds)) &&
-      attempts < 100
-    );
-
-    if (attempts >= 100) return;
-
-    this.container.addChild(apple);
-    this.fruits.push({ sprite: apple });
+    }
   }
 
   public spawnMany(spawnExclusionZone: BoundingBox, numberOfFruits: number) {
