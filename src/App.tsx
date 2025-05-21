@@ -1,16 +1,9 @@
 import Game from "./components/Game.tsx";
+import styles from "./app.module.css";
 
 function App() {
   return (
-    <div
-      style={{
-        width: "100vw",
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        height: "100vh",
-      }}
-    >
+    <div className={styles.container}>
       <Game />
     </div>
   );
